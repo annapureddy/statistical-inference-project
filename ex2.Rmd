@@ -1,0 +1,97 @@
+---
+title: "Analysis of Tooth Growth"
+author: "Sid Reddy"
+date: "December 20, 2014"
+output: pdf_document
+---
+
+## Exploratory data analysis
+We show an initial plot here to identify the differences between VC and OJ, for each of the three doses (0.5, 1, 2 mg). It appears that OJ is general more effective at each of the three doses. 
+
+```{r tidy=TRUE}
+library(datasets)
+library(ggplot2)
+
+data(ToothGrowth)
+ggplot(ToothGrowth) + geom_point(aes(x = rep(1:10, 6), y = len, color = supp)) + facet_grid( ~ dose)
+```
+
+Another plot shows the effect of dose, for each of VC and OJ. For OJ, the difference between 1mg vs 2mg appears minimal, while for VC 2mg is a clear winner. For both VC and OJ, 0.5mg is insufficient. 
+
+```{r tidy=TRUE}
+ggplot(ToothGrowth) + geom_point(aes(x = rep(1:10, 6), y = len, color = factor(dose))) + facet_grid( ~ supp)
+```
+
+## Basic summary of data
+
+The table below shows the mean and the standard deviation for each combination of supplement and dose values. We notice that only OJ at 1 and 2mg, and VC at 2mg are the major contenders for boosting tooth growth in guinea pigs. 
+
+```{r message=FALSE, warning=FALSE, tidy=TRUE}
+library(dplyr)
+library(reshape2)
+library(knitr)
+s <- summarize(group_by(ToothGrowth, supp, dose), 'mean, sd' = paste(mean(len), round(sd(len), 2), sep = ', '))
+t <- dcast(s, supp ~ dose, value.var = "mean, sd")
+kable(t, caption = 'Mean and standard deviation for each (supp, dose) combination')
+```
+
+## Hypothesis testing
+
+There are three combinations we can test like we discussed above: OJ at 1, 2mg, and VC at 2mg. First, let's consider OJ and VC at 2mg. Note that for all the tests, we assume there is no pairing (it seems reasonable that different guinea pigs were used for different tests), and that the variances are unequal (there is no apriori reason to assume they are the same).
+
+```{r results='hold', tidy=TRUE}
+d1 <- unlist(select(filter(ToothGrowth, supp == 'OJ', dose == 2), len))
+d2 <- unlist(select(filter(ToothGrowth, supp == 'VC', dose == 2), len))
+d3 <- unlist(select(filter(ToothGrowth, supp == 'OJ', dose == 1), len))
+
+rbind(
+  t.test(d1, d2)$conf, # Compare OJ at 2mg with VC at 2mg
+  t.test(d1, d3)$conf, # Compare OJ at 2mg with OJ at 1mg
+  t.test(d2, d3)$conf # Compare VC at 2mg with OJ at 1mg
+)
+```
+
+There is a clear difference between OJ at 2mg vs 1mg (the 95% confidence interval does not contain 0), so we can eliminate OJ at 1mg. Note that while VC at 2mg is not clearly better than OJ at 1mg with 95% confidence, we can conclude that with 90% confidence as shown below. 
+```{r tidy=TRUE}
+t.test(d2, d3, conf.level = 0.9)$conf
+```
+
+Let's analyze OJ vs VC at 2mg a little more. We notice that even with 50% confidence, we cannot make a clear separation between the results. Thus, the conclusion is that both OJ or VC work equally well at 2mg for the best tooth growth. 
+```{r}
+t.test(d1, d2, conf.level = 0.5)$conf
+```
+
+Let's now make a few other comparisons, and we will obtain a descending order wrt tooth growth of the supplement and dose values.
+```{r results='hold', tidy=TRUE}
+d4 <- unlist(select(filter(ToothGrowth, supp == 'VC', dose == 1), len))
+d5 <- unlist(select(filter(ToothGrowth, supp == 'OJ', dose == 0.5), len))
+d6 <- unlist(select(filter(ToothGrowth, supp == 'VC', dose == 0.5), len))
+
+rbind(
+  t.test(d3, d4)$conf, # OJ vs VC at 1mg
+  t.test(d3, d5)$conf, # OJ at 1mg vs 0.5mg
+  t.test(d4, d5)$conf, # VC at 1mg vs OJ at 0.5mg
+  t.test(d5, d6)$conf, # OJ at 0.5mg vs VC at 0.5mg
+  t.test(d4, d6)$conf  # VC at 1mg vs 0.5mg
+)
+
+```
+
+From the t-tests above, the descending order is:
+ * OJ or VC at 2mg
+ * OJ at 1mg
+ * VC at 1mg
+ * OJ at 0.5mg
+ * VC at 0.5mg
+ 
+## Conclusions and assumptions
+Conclusions:
+
+ * For best tooth growth, you can use either orange juice (OJ) or ascorbic acid (VC) with a 2mg dose.
+ * Orange juice is better than ascorbic acid at dose levels of 0.5mg and 1mg. 
+ * For both OJ and VC, a higher dose is strictly better (2mg > 1mg > 0.5mg).
+ 
+Assumptions:
+
+ * The experiments have been randomized, so that they are no covariates or confounding variables. In other words, the samples are IID: independent and identically distributed. 
+ * The t-tests have been performed with pairing = FALSE (it seems reasonable that different guinea pigs were used for the different experiments, and hence pairing cannot be done). Also, we have used var.equal = FALSE, as there is no apriori reason to assume equal variances. 
